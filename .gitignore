@@ -1,0 +1,5 @@
+.pio
+.vscode
+.idea
+*.bak
+*.tmp

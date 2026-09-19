@@ -14,7 +14,8 @@ namespace bmp390 {
 // ---------------------------------------------------------------------------
 // Chip identification
 // ---------------------------------------------------------------------------
-static constexpr uint8_t kChipId = 0x60;
+static constexpr uint8_t kChipId       = 0x60;  // BMP390
+static constexpr uint8_t kChipIdBmp388 = 0x50;  // BMP388 (identical register map & compensation)
 
 // ---------------------------------------------------------------------------
 // Register addresses
@@ -88,6 +89,14 @@ struct CalibData {
     int8_t   par_p10;
     int8_t   par_p11;
 };
+
+// ---------------------------------------------------------------------------
+// Sensor limits (Bosch BST-BMP390-DS002 / bmp3_defs.h)
+// ---------------------------------------------------------------------------
+static constexpr uint32_t kMinPressureCpa = 3000000;   // 300.00 hPa (30 000 Pa)
+static constexpr uint32_t kMaxPressureCpa = 12500000;  // 1250.00 hPa (125 000 Pa)
+static constexpr int32_t  kMinTempCdeg    = -4000;     // -40.00 °C
+static constexpr int32_t  kMaxTempCdeg    = 8500;      // +85.00 °C
 
 }  // namespace bmp390
 }  // namespace vario

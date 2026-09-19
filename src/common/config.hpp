@@ -10,10 +10,26 @@ namespace vario {
 namespace config {
 
 // ---------------------------------------------------------------------------
-// I2C Configuration
+// Sensor Bus Interface Selection (0 = I2C, 1 = SPI)
 // ---------------------------------------------------------------------------
 
-/// BMP390 default I2C address (SDO pulled high or floating)
+#ifndef VARIO_USE_SPI
+/// Set to 1 to communicate with BMP390 via SPI (4-wire), 0 for I2C.
+#define VARIO_USE_SPI 0
+#endif
+
+// ---------------------------------------------------------------------------
+// SPI Configuration (active when VARIO_USE_SPI == 1)
+// ---------------------------------------------------------------------------
+
+/// Chip Select (CS) pin for BMP390 (Seeed XIAO D3 / Physical Pin 4)
+static constexpr uint8_t kSpiCsPin = 3;
+
+// ---------------------------------------------------------------------------
+// I2C Configuration (active when VARIO_USE_SPI == 0)
+// ---------------------------------------------------------------------------
+
+/// BMP390 I2C address (SDO wired to 3.3V = HIGH → address 0x77, GND → 0x76)
 static constexpr uint8_t kBmp390I2cAddress = 0x77;
 
 // ---------------------------------------------------------------------------

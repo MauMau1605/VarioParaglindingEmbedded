@@ -3,7 +3,7 @@
 ///        Manages timing and data flow: BMP390 → Vario Engine → LK8EX1 → USB.
 
 #include "app/vario_app.hpp"
-#include "hal/i2c_hal.hpp"
+#include "hal/sensor_bus_hal.hpp"
 #include "hal/usb_serial_hal.hpp"
 #include "drivers/bmp390.hpp"
 #include "middleware/vario_engine.hpp"
@@ -26,8 +26,8 @@ static VarioData s_latest_vario = {};
 
 Error vario_app_init()
 {
-    // 1. Initialize I2C bus
-    Error err = hal::i2c_init();
+    // 1. Initialize sensor bus (I2C or SPI depending on VARIO_USE_SPI)
+    Error err = hal::sensor_bus_init();
     if (err != Error::kOk) {
         return err;
     }

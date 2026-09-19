@@ -157,10 +157,33 @@ VarioUSB/
 │   ├── hal/               # I2C (Wire) and USB Serial (CDC) HAL
 │   ├── middleware/        # Vario dP/dt engine & LK8EX1 formatter
 │   └── main.cpp           # Arduino setup() & loop() entry point
+├── tools/
+│   └── vario_monitor/     # Python GUI monitor, flight logger & TCP bridge to VarioAppli
 ├── platformio.ini         # PlatformIO configuration (ATSAMD21G18A, flags)
 └── README.md              # Project documentation and quick start
 ```
 
+---
+
+## PC Telemetry Monitor & Flight Recorder (GUI)
+
+A Python desktop utility is provided in [`tools/vario_monitor/`](file:///tools/vario_monitor/README.md) to inspect, log, and forward the real-time LK8EX1 data stream on your PC:
+
+- **Live Stream:** Displays decoded vertical speed (Vz), barometric pressure, altitude, temperature, and checksum verification.
+- **Flight Recorder:** Saves telemetry into `.nmea` flight logs and synchronised `.csv` files.
+- **Simulation Mode:** Generates realistic thermal climb and sink data at 10 Hz if hardware is not connected.
+- **Bridge to `VarioAppli`:** Includes a multi-client TCP bridge server (port 8888) to stream live data into the Android application running on emulator or mobile.
+
+To launch:
+```powershell
+# Double click tools/vario_monitor/run_monitor.bat or run:
+cd tools/vario_monitor
+py main.py
+```
+
+---
+
 For in-depth technical documentation, refer to:
 - [Hardware Wiring & Pinout Guide](file:///docs/hardware_wiring.md)
 - [Software Architecture & Fixed-Point Math Reference](file:///docs/architecture.md)
+- [Python Monitor & Flight Recorder Guide](file:///tools/vario_monitor/README.md)

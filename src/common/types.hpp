@@ -12,6 +12,7 @@ namespace vario {
 ///        Used as the output of the driver layer and input to the middleware.
 struct PressureData {
     int32_t pressure_pa;       ///< Compensated pressure in Pascals (e.g., 101325 Pa)
+    int32_t pressure_cpa;      ///< Compensated pressure in centiPascals — 0.01 Pa resolution (e.g., 10132500 = 101325.00 Pa)
     int32_t temperature_cdeg;  ///< Compensated temperature in centidegrees Celsius (e.g., 2150 = 21.50 °C)
 };
 

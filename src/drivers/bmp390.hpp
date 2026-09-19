@@ -23,6 +23,10 @@ Error init();
 /// @return Error::kOk on success, error code on communication or data failure.
 Error read_pressure_temperature(PressureData* out);
 
+/// @brief Returns the raw chip ID detected during initialization.
+/// @return 8-bit chip ID read from hardware (0x60 for BMP390, 0x50 for BMP388).
+uint8_t get_detected_chip_id();
+
 }  // namespace bmp390
 }  // namespace vario
 

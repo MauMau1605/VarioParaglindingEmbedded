@@ -3,3 +3,6 @@
 .idea
 *.bak
 *.tmp
+__pycache__
+*.pyc
+tools/vario_monitor/logs*

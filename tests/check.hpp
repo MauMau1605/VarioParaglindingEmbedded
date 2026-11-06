@@ -14,6 +14,22 @@ static int g_test_failures = 0;
         } \
     } while (0)
 
+#define CHECK_FALSE(cond) \
+    do { \
+        if (cond) { \
+            std::cerr << "CHECK_FALSE FAILED: " #cond " at " << __FILE__ << ":" << __LINE__ << std::endl; \
+            ++g_test_failures; \
+        } \
+    } while (0)
+
+#define CHECK_EQ(a, b) \
+    do { \
+        if ((a) != (b)) { \
+            std::cerr << "CHECK_EQ FAILED: " #a " == " #b " at " << __FILE__ << ":" << __LINE__ << std::endl; \
+            ++g_test_failures; \
+        } \
+    } while (0)
+
 #define CHECK_NEAR(a, b, tol) \
     do { \
         double diff = std::abs(static_cast<double>(a) - static_cast<double>(b)); \
@@ -23,4 +39,3 @@ static int g_test_failures = 0;
             ++g_test_failures; \
         } \
     } while (0)
-

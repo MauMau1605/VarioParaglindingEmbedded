@@ -13,7 +13,8 @@ namespace vario::hal {
 static const struct device *const s_uart_dev =
     DEVICE_DT_GET(DT_NODELABEL(uart1));
 
-RING_BUF_DECLARE(s_rx_rb, 256);
+static struct ring_buf s_rx_rb;
+static uint8_t s_rx_buf_storage[256];
 static volatile uint32_t s_overflow = 0;
 static UartRxNotify s_notify = nullptr;
 static void *s_user = nullptr;
@@ -43,7 +44,7 @@ Error uart_init(UartRxNotify notify, void *user_data) {
   }
   s_notify = notify;
   s_user = user_data;
-  ring_buf_reset(&s_rx_rb);
+  ring_buf_init(&s_rx_rb, sizeof(s_rx_buf_storage), s_rx_buf_storage);
   uart_irq_callback_user_data_set(s_uart_dev, uart_isr, nullptr);
   uart_irq_rx_enable(s_uart_dev);
   return Error::kOk;

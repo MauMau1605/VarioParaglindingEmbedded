@@ -5,6 +5,7 @@
 #include <errno.h>
 #include <zephyr/bluetooth/bluetooth.h>
 #include <zephyr/bluetooth/conn.h>
+#include <zephyr/bluetooth/uuid.h>
 #include <zephyr/kernel.h>
 
 #define BT_UUID_VARIO_SERVICE_VAL                                              \
@@ -55,16 +56,16 @@ static void on_ble_disconnected(struct bt_conn *conn, uint8_t reason) {
 
 static void on_conn_recycled(void) { (void)ble_start_advertising(); }
 
-BT_CONN_CB_DEFINE(s_conn_callbacks) = {
-    .connected = on_ble_connected,
-    .disconnected = on_ble_disconnected,
-    .recycled = on_conn_recycled,
-};
+static struct bt_conn_cb s_conn_callbacks = {};
 
 Error ble_init(const BleCallbacks *callbacks) {
   if (callbacks != nullptr) {
     s_callbacks = *callbacks;
   }
+  s_conn_callbacks.connected = on_ble_connected;
+  s_conn_callbacks.disconnected = on_ble_disconnected;
+  s_conn_callbacks.recycled = on_conn_recycled;
+  bt_conn_cb_register(&s_conn_callbacks);
   const int rc = bt_enable(nullptr);
   return (rc == 0) ? Error::kOk : Error::kBleError;
 }

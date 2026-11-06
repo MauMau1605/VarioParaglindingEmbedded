@@ -109,7 +109,136 @@ def test_vario_dt():
     assert quantize_baro_dt_ms(9) == 20
     print("vario_dt tests passed!")
 
+def test_ubx_parser():
+    print("Testing ubx_parser...")
+    def fletcher8(data):
+        a, b = 0, 0
+        for byte in data:
+            a = (a + byte) & 0xFF
+            b = (b + a) & 0xFF
+        return a, b
+
+    def make_ubx(cls, msg_id, payload):
+        length = len(payload)
+        header = bytes([0xB5, 0x62, cls, msg_id, length & 0xFF, (length >> 8) & 0xFF])
+        ck_a, ck_b = fletcher8(header[2:] + payload)
+        return header + payload + bytes([ck_a, ck_b])
+
+    class PyUbxParser:
+        def __init__(self):
+            self.reset()
+
+        def reset(self):
+            self.state = 0
+            self.cls = 0
+            self.id = 0
+            self.len = 0
+            self.payload = bytearray()
+            self.ck_a = 0
+            self.ck_b = 0
+
+        def feed(self, b):
+            if self.state == 0:
+                if b == 0xB5: self.state = 1
+            elif self.state == 1:
+                if b == 0x62: self.state = 2
+                elif b != 0xB5: self.state = 0
+            elif self.state == 2:
+                self.cls = b
+                self.ck_a = b
+                self.ck_b = b
+                self.state = 3
+            elif self.state == 3:
+                self.id = b
+                self.ck_a = (self.ck_a + b) & 0xFF
+                self.ck_b = (self.ck_b + self.ck_a) & 0xFF
+                self.state = 4
+            elif self.state == 4:
+                self.len = b
+                self.ck_a = (self.ck_a + b) & 0xFF
+                self.ck_b = (self.ck_b + self.ck_a) & 0xFF
+                self.state = 5
+            elif self.state == 5:
+                self.len |= (b << 8)
+                self.ck_a = (self.ck_a + b) & 0xFF
+                self.ck_b = (self.ck_b + self.ck_a) & 0xFF
+                if self.len > 92:
+                    self.state = 0
+                else:
+                    self.payload = bytearray()
+                    self.state = 6 if self.len > 0 else 7
+            elif self.state == 6:
+                self.payload.append(b)
+                self.ck_a = (self.ck_a + b) & 0xFF
+                self.ck_b = (self.ck_b + self.ck_a) & 0xFF
+                if len(self.payload) == self.len:
+                    self.state = 7
+            elif self.state == 7:
+                if b == self.ck_a:
+                    self.state = 8
+                else:
+                    self.state = 0
+            elif self.state == 8:
+                self.state = 0
+                if b == self.ck_b:
+                    if self.cls == 0x01 and self.id == 0x07 and self.len == 92:
+                        return "NAV_PVT"
+                    elif self.cls == 0x05 and self.id == 0x01 and self.len == 2:
+                        return "ACK_ACK"
+                    elif self.cls == 0x05 and self.id == 0x00 and self.len == 2:
+                        return "ACK_NAK"
+            return None
+
+    def collect_events(parser, data):
+        evs = []
+        for b in data:
+            ev = parser.feed(b)
+            if ev is not None:
+                evs.append(ev)
+        return evs
+
+    # Test 1: NAV-PVT
+    parser = PyUbxParser()
+    pvt_payload = bytes(92)
+    pvt_frame = make_ubx(0x01, 0x07, pvt_payload)
+    events = collect_events(parser, pvt_frame)
+    assert events == ["NAV_PVT"], f"Expected NAV_PVT, got {events}"
+
+    # Test 2: NMEA stream prepended
+    parser.reset()
+    nmea = b"$GNGGA,123519,4807.038,N,01131.000,E,1,08,0.9,545.4,M,46.9,M,,*47\r\n"
+    stream = nmea + pvt_frame
+    events = collect_events(parser, stream)
+    assert events == ["NAV_PVT"]
+
+    # Test 3: Corrupted payload byte + recovery
+    parser.reset()
+    corrupt = bytearray(pvt_frame)
+    corrupt[15] ^= 0xFF
+    events = collect_events(parser, corrupt + pvt_frame)
+    assert events == ["NAV_PVT"], f"Expected 1 NAV_PVT on recovery, got {events}"
+
+    # Test 4: ACK-ACK and ACK-NAK
+    parser.reset()
+    ack_frame = make_ubx(0x05, 0x01, bytes([0x06, 0x8A]))
+    events = collect_events(parser, ack_frame)
+    assert events == ["ACK_ACK"], f"Expected ACK_ACK, got {events}"
+
+    parser.reset()
+    nak_frame = make_ubx(0x05, 0x00, bytes([0x06, 0x8A]))
+    events = collect_events(parser, nak_frame)
+    assert events == ["ACK_NAK"], f"Expected ACK_NAK, got {events}"
+
+    # Test 5: Length > 92 dropped, then next frame passes
+    parser.reset()
+    big_frame = make_ubx(0x01, 0x07, bytes(150))
+    events = collect_events(parser, big_frame + pvt_frame)
+    assert events == ["NAV_PVT"], f"Expected NAV_PVT, got {events}"
+
+    print("ubx_parser tests passed!")
+
 if __name__ == "__main__":
     test_baro_math()
     test_vario_dt()
+    test_ubx_parser()
     print("All python test validations passed!")

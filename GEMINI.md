@@ -4,22 +4,22 @@ All code, comments, documentation, and agent reasoning must be in English.
 
 ## Standalone Orchestration Directives
 1. The default entry point is the **Orchestrator** defined in `.antigravity/config.json`.
-2. Antigravity acts as a standalone autonomous orchestrator: analyze the user prompt, break it down, and delegate execution to the specialized sub-agents in `.antigravity/prompts/` (Architect, DriverDev, Tester, DocWriter, Reviewer) using their assigned models without manual switching.
+2. Antigravity acts as a standalone autonomous orchestrator: analyze the user prompt, break it down, and delegate execution to specialized sub-agents (Architect, DriverDev, Tester, DocWriter, Reviewer) using their assigned models without manual switching.
 3. Every generated code output must be audited against the **Reviewer** checklist before completing the task.
 
 ---
 ## 1. System Target & Core Constraints
 
-- **Platform:** Embedded system — **Seeed XIAO SAMD21** (ATSAMD21G18A, ARM Cortex-M0+).
-- **Build System:** PlatformIO with Arduino framework.
-- **Resource Constraints:** 32 KB RAM, 256 KB Flash. Minimal footprint, cache-friendly data layouts, deterministic execution timing.
-- **Execution Model:** Single-threaded cooperative loop (`setup()` / `loop()`). No RTOS.
+- **Platform:** Embedded system — **nRF52833-QDAA** (ARM Cortex-M4F, 2.4 GHz BLE 5.1 radio).
+- **Framework & Build System:** Zephyr RTOS (nRF Connect SDK) with CMake, west, Kconfig, and Devicetree.
+- **Resource Constraints:** 128 KB RAM, 512 KB Flash. Deterministic execution timing, minimal power footprint.
+- **Execution Model:** Periodic 50 Hz `k_timer` event loop on main thread, async EasyDMA for GNSS UART, Zephyr system workqueue for Bluetooth LE event dispatching. CPU enters System ON `WFE` sleep > 97% of the time.
 - **Strictly Prohibited:**
   - **No Dynamic Memory Allocation:** Never use `malloc`, `free`, `new`, or `delete`. Do not use heap-allocating STL containers (`std::vector`, `std::string`, `std::map`, `std::list`).
   - **No C++ Exceptions:** Compile with `-fno-exceptions`. Never throw or catch exceptions.
-  - **No C++ Templates / Generic Programming:** No complex template meta-programming, template classes, or heavy generic header libraries. Keep abstractions concrete or interface-driven via function pointers/lightweight virtual interfaces to prevent code bloat.
+  - **No C++ Templates / Generic Programming:** No complex template meta-programming, template classes, or heavy generic header libraries. Keep abstractions concrete or interface-driven via function pointers.
   - **No RTTI:** Compile with `-fno-rtti`. Avoid `dynamic_cast` and `typeid`.
-  - **No Floating Point:** The Cortex-M0+ has no FPU. Use fixed-point integer arithmetic exclusively.
+  - **No Floating Point:** Even though Cortex-M4F has an FPU, use fixed-point and integer arithmetic exclusively across all layers.
 
 ---
 
@@ -33,7 +33,7 @@ Select or dispatch tasks to models based on complexity and risk profile:
 | **Hardware driver debugging, timing analysis, ISR safety audits** | Claude Sonnet 4 (Thinking) | Step-by-step reasoning essential for hardware timing, volatile registers, and concurrency hazards. |
 | **Concrete driver & module implementation (`.hpp`/`.cpp`), register bitmasking** | Claude Sonnet 4 | High code readability, idiomatic low-overhead C++, exact adherence to project style. |
 | **Full codebase dependency checks, peripheral map auditing, memory map reviews** | Gemini 3 Pro | Massive context window allows parsing entire SDK headers and project files simultaneously. |
-| **Boilerplate register definitions, unit test runners, build flags/PlatformIO adjustments** | Gemini 3 Flash | Instant response latency and minimal token usage for deterministic scaffolding. |
+| **Boilerplate register definitions, unit test runners, build flags/CMake/Kconfig** | Gemini 3 Flash | Instant response latency and minimal token usage for deterministic scaffolding. |
 
 ---
 
@@ -63,8 +63,8 @@ Select or dispatch tasks to models based on complexity and risk profile:
 2. **Memory & Buffer Management:**
    - Use compile-time static allocations or stack memory with controlled maximum depth.
    - For fixed-size buffers, use `std::array<T, N>` or fixed-size C arrays.
-   - Use non-owning views such as `std::string_view` or non-owning slice structures for read-only buffer inspection without copying.
-   - Check stack limits carefully—never allocate large buffers on the stack (SAMD21 has only 32 KB RAM total).
+   - Non-owning views or buffers passed by pointer/reference for read-only inspection.
+   - Check stack limits carefully (main stack size: 2048 bytes).
 
 3. **Error Handling:**
    - Return explicit status codes using `enum class Error : uint8_t` defined in `common/error_codes.hpp`.

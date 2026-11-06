@@ -8,7 +8,7 @@
 #include "hal/sensor_bus_hal.hpp"
 #include "common/config.hpp"
 
-#include <Arduino.h>  // delay()
+#include <zephyr/kernel.h>
 
 namespace vario {
 namespace bmp390 {
@@ -107,145 +107,121 @@ static void calc_pressure_sensitivity(int64_t* sensitivity)
 // Returns pressure in centiPascals (e.g., 10132500 = 101325.00 Pa = 1013.25 hPa).
 // Source: BMP3-Sensor-API bmp3.c  compensate_pressure() (integer version)
 // ---------------------------------------------------------------------------
+static int64_t calc_pressure_terms(const int64_t raw)
+{
+    const int64_t pd2 = static_cast<int64_t>(s_calib.par_p10) * s_t_lin;
+    const int64_t pd3 = pd2 + (INT64_C(65536) * static_cast<int64_t>(s_calib.par_p9));
+    const int64_t pd4 = (pd3 * raw) / INT64_C(8192);
+    const int64_t pd5 = (raw * (pd4 / INT64_C(10))) / INT64_C(512) * INT64_C(10);
+    const int64_t pd6  = raw * raw;
+    const int64_t pd7  = (static_cast<int64_t>(s_calib.par_p11) * pd6) / INT64_C(65536);
+    const int64_t pd8  = (pd7 * raw) / INT64_C(128);
+    return pd5 + pd8;
+}
+
 static int32_t compensate_pressure_cpa(const uint32_t raw_press)
 {
-    int64_t offset      = 0;
+    int64_t offset = 0;
     int64_t sensitivity = 0;
     calc_pressure_offset(&offset);
     calc_pressure_sensitivity(&sensitivity);
 
     const int64_t raw = static_cast<int64_t>(raw_press);
-
     const int64_t pd1 = (sensitivity / INT64_C(16777216)) * raw;
+    const int64_t pd9 = (offset / INT64_C(4)) + pd1 + calc_pressure_terms(raw);
 
-    const int64_t pd2 = static_cast<int64_t>(s_calib.par_p10) * s_t_lin;
-    const int64_t pd3 = pd2 + (INT64_C(65536) * static_cast<int64_t>(s_calib.par_p9));
-    const int64_t pd4 = (pd3 * raw) / INT64_C(8192);
+    if (pd9 <= 0) return static_cast<int32_t>(kMinPressureCpa);
 
-    // Divide/multiply by 10 to avoid intermediate overflow
-    const int64_t pd5 = (raw * (pd4 / INT64_C(10))) / INT64_C(512) * INT64_C(10);
-
-    const int64_t pd6  = raw * raw;
-    const int64_t pd7  = (static_cast<int64_t>(s_calib.par_p11) * pd6) / INT64_C(65536);
-    const int64_t pd8  = (pd7 * raw) / INT64_C(128);
-    const int64_t pd9  = (offset / INT64_C(4)) + pd1 + pd5 + pd8;
-
-    if (pd9 <= 0) {
-        return static_cast<int32_t>(kMinPressureCpa);
-    }
-
-    // pd9 * 25 reaches ~1.1e19, exceeding INT64_MAX (9.22e18).
-    // Using uint64_t arithmetic prevents signed 64-bit overflow and negative wrap,
-    // exactly matching the official Bosch BMP3-Sensor-API implementation.
     uint64_t comp_cpa = (static_cast<uint64_t>(pd9) * UINT64_C(25)) / UINT64_C(1099511627776);
-    if (comp_cpa < kMinPressureCpa) {
-        comp_cpa = kMinPressureCpa;
-    } else if (comp_cpa > kMaxPressureCpa) {
-        comp_cpa = kMaxPressureCpa;
-    }
-
+    if (comp_cpa < kMinPressureCpa) comp_cpa = kMinPressureCpa;
+    else if (comp_cpa > kMaxPressureCpa) comp_cpa = kMaxPressureCpa;
     return static_cast<int32_t>(comp_cpa);
 }
 
-// ---------------------------------------------------------------------------
-// Public API
-// ---------------------------------------------------------------------------
-
-Error init()
+static Error verify_chip_id()
 {
-    // 1. Read chip ID first to verify communication
     s_detected_chip_id = 0;
-    Error err = hal::sensor_bus_read_register(kRegChipId, &s_detected_chip_id, 1);
-    if (err != Error::kOk) {
-        return err;
-    }
+    const Error err = hal::sensor_bus_read_register(kRegChipId, &s_detected_chip_id, 1);
+    if (err != Error::kOk) return err;
     if (s_detected_chip_id != kChipId && s_detected_chip_id != kChipIdBmp388) {
         return Error::kInvalidChipId;
     }
+    return Error::kOk;
+}
 
-    // 2. Soft reset
+static Error soft_reset()
+{
     const uint8_t reset_cmd = kCmdSoftReset;
-    err = hal::sensor_bus_write_register(kRegCmd, &reset_cmd, 1);
-    if (err != Error::kOk) {
-        return err;
-    }
-    delay(kSoftResetDelayMs);
+    const Error err = hal::sensor_bus_write_register(kRegCmd, &reset_cmd, 1);
+    if (err != Error::kOk) return err;
+    k_msleep(kSoftResetDelayMs);
+    return Error::kOk;
+}
 
-    // 3. Read calibration data (21 bytes from NVM)
+static Error load_calibration()
+{
     uint8_t calib_raw[kCalibDataLen] = {};
-    err = hal::sensor_bus_read_register(kRegNvmPar, calib_raw, kCalibDataLen);
-    if (err != Error::kOk) {
-        return err;
-    }
+    const Error err = hal::sensor_bus_read_register(kRegNvmPar, calib_raw, kCalibDataLen);
+    if (err != Error::kOk) return err;
     parse_calib_data(calib_raw);
+    return Error::kOk;
+}
 
-    // 4. Configure oversampling (OSR register)
-    const uint8_t osr_val = (config::kBmp390OsrTemperature << 3) |
-                            config::kBmp390OsrPressure;
-    err = hal::sensor_bus_write_register(kRegOsr, &osr_val, 1);
-    if (err != Error::kOk) {
-        return err;
-    }
-
-    // 5. Configure output data rate (ODR register)
-    err = hal::sensor_bus_write_register(kRegOdr, &config::kBmp390Odr, 1);
-    if (err != Error::kOk) {
-        return err;
-    }
-
-    // 6. Configure IIR filter (CONFIG register)
+static Error configure_sensor()
+{
+    const uint8_t osr_val = (config::kBmp390OsrTemperature << 3) | config::kBmp390OsrPressure;
+    if (hal::sensor_bus_write_register(kRegOsr, &osr_val, 1) != Error::kOk) return Error::kWriteFailed;
+    if (hal::sensor_bus_write_register(kRegOdr, &config::kBmp390Odr, 1) != Error::kOk) return Error::kWriteFailed;
     const uint8_t filter_val = config::kBmp390IirFilterCoeff << 1;
-    err = hal::sensor_bus_write_register(kRegConfig, &filter_val, 1);
-    if (err != Error::kOk) {
-        return err;
-    }
+    if (hal::sensor_bus_write_register(kRegConfig, &filter_val, 1) != Error::kOk) return Error::kWriteFailed;
+    const uint8_t pwr_ctrl = kPwrCtrlPressEn | kPwrCtrlTempEn | kPwrCtrlModeNormal;
+    if (hal::sensor_bus_write_register(kRegPwrCtrl, &pwr_ctrl, 1) != Error::kOk) return Error::kWriteFailed;
+    return Error::kOk;
+}
 
-    // 7. Enable pressure + temperature, normal mode
-    const uint8_t pwr_ctrl = kPwrCtrlPressEn | kPwrCtrlTempEn |
-                             kPwrCtrlModeNormal;
-    err = hal::sensor_bus_write_register(kRegPwrCtrl, &pwr_ctrl, 1);
-    if (err != Error::kOk) {
-        return err;
-    }
-
+Error init()
+{
+    Error err = verify_chip_id();
+    if (err != Error::kOk) return err;
+    err = soft_reset();
+    if (err != Error::kOk) return err;
+    err = load_calibration();
+    if (err != Error::kOk) return err;
+    err = configure_sensor();
+    if (err != Error::kOk) return err;
     s_initialized = true;
     return Error::kOk;
 }
 
+static void unpack_raw_sensor_data(const uint8_t* d, uint32_t* p, uint32_t* t)
+{
+    *p = static_cast<uint32_t>(d[2]) << 16 | static_cast<uint32_t>(d[1]) << 8 | static_cast<uint32_t>(d[0]);
+    *t = static_cast<uint32_t>(d[5]) << 16 | static_cast<uint32_t>(d[4]) << 8 | static_cast<uint32_t>(d[3]);
+}
+
 Error read_pressure_temperature(PressureData* out)
 {
-    if (!s_initialized) {
-        return Error::kNotInitialized;
-    }
-    if (out == nullptr) {
-        return Error::kInvalidData;
+    if (!s_initialized) return Error::kNotInitialized;
+    if (out == nullptr) return Error::kInvalidData;
+
+    uint8_t status = 0;
+    Error err = hal::sensor_bus_read_register(kRegStatus, &status, 1);
+    if (err != Error::kOk) return err;
+    if ((status & kStatusDrdy_Press) == 0) {
+        return Error::kBusy;
     }
 
-    // Read 6 bytes: P[XLSB,LSB,MSB] + T[XLSB,LSB,MSB]
     uint8_t data[6] = {};
-    const Error err = hal::sensor_bus_read_register(kRegData0, data, 6);
-    if (err != Error::kOk) {
-        return err;
-    }
+    err = hal::sensor_bus_read_register(kRegData0, data, 6);
+    if (err != Error::kOk) return err;
 
-    // Assemble 24-bit raw values (little-endian, LSByte first)
-    const uint32_t raw_press = static_cast<uint32_t>(data[2]) << 16 |
-                               static_cast<uint32_t>(data[1]) << 8  |
-                               static_cast<uint32_t>(data[0]);
+    uint32_t raw_press = 0;
+    uint32_t raw_temp = 0;
+    unpack_raw_sensor_data(data, &raw_press, &raw_temp);
 
-    const uint32_t raw_temp  = static_cast<uint32_t>(data[5]) << 16 |
-                               static_cast<uint32_t>(data[4]) << 8  |
-                               static_cast<uint32_t>(data[3]);
-
-    // Temperature must be compensated first — it sets s_t_lin used by pressure
     out->temperature_cdeg = compensate_temperature(raw_temp);
-
-    // Pressure in centiPascals (0.01 Pa) for internal high-resolution vario calc
-    out->pressure_cpa = compensate_pressure_cpa(raw_press);
-
-    // Pressure in whole Pascals for LK8EX1 sentence output
-    out->pressure_pa  = out->pressure_cpa / 100;
-
+    out->pressure_cpa     = compensate_pressure_cpa(raw_press);
+    out->pressure_pa      = out->pressure_cpa / 100;
     return Error::kOk;
 }
 

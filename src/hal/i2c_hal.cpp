@@ -1,15 +1,35 @@
 /// @file i2c_hal.cpp
-/// @brief I2C HAL implementation using Arduino Wire library.
+/// @brief Zephyr I2C hardware abstraction implementation.
 
 #include "hal/i2c_hal.hpp"
-#include <Wire.h>
+#include <zephyr/kernel.h>
+#include <zephyr/device.h>
+#include <zephyr/drivers/i2c.h>
 
 namespace vario {
 namespace hal {
 
+static const struct device* const s_i2c_dev = DEVICE_DT_GET(DT_NODELABEL(i2c0));
+
+static Error map_zephyr_err(const int err)
+{
+    if (err == 0) {
+        return Error::kOk;
+    }
+    if (err == -ETIMEDOUT) {
+        return Error::kTimeout;
+    }
+    if (err == -EIO) {
+        return Error::kNack;
+    }
+    return Error::kReadFailed;
+}
+
 Error i2c_init()
 {
-    Wire.begin();
+    if (!device_is_ready(s_i2c_dev)) {
+        return Error::kNotInitialized;
+    }
     return Error::kOk;
 }
 
@@ -21,27 +41,8 @@ Error i2c_read_register(const uint8_t device_addr,
     if (buffer == nullptr || len == 0) {
         return Error::kInvalidData;
     }
-
-    // Send register address
-    Wire.beginTransmission(device_addr);
-    Wire.write(reg_addr);
-    const uint8_t tx_status = Wire.endTransmission(false);  // Repeated start
-
-    if (tx_status != 0) {
-        return (tx_status == 2) ? Error::kNack : Error::kTimeout;
-    }
-
-    // Request bytes from device
-    const uint8_t received = Wire.requestFrom(device_addr, len);
-    if (received != len) {
-        return Error::kReadFailed;
-    }
-
-    for (uint8_t i = 0; i < len; ++i) {
-        buffer[i] = static_cast<uint8_t>(Wire.read());
-    }
-
-    return Error::kOk;
+    const int rc = i2c_write_read(s_i2c_dev, device_addr, &reg_addr, 1, buffer, len);
+    return map_zephyr_err(rc);
 }
 
 Error i2c_write_register(const uint8_t device_addr,
@@ -49,24 +50,11 @@ Error i2c_write_register(const uint8_t device_addr,
                          const uint8_t* data,
                          const uint8_t len)
 {
-    if (data == nullptr && len > 0) {
+    if (data == nullptr || len == 0) {
         return Error::kInvalidData;
     }
-
-    Wire.beginTransmission(device_addr);
-    Wire.write(reg_addr);
-
-    for (uint8_t i = 0; i < len; ++i) {
-        Wire.write(data[i]);
-    }
-
-    const uint8_t tx_status = Wire.endTransmission(true);
-
-    if (tx_status != 0) {
-        return (tx_status == 2) ? Error::kNack : Error::kWriteFailed;
-    }
-
-    return Error::kOk;
+    const int rc = i2c_burst_write(s_i2c_dev, device_addr, reg_addr, data, len);
+    return map_zephyr_err(rc);
 }
 
 }  // namespace hal

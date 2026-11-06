@@ -1,0 +1,5 @@
+# Python requirements for VarioGPS-BLE / Zephyr RTOS development
+west>=1.2.0
+pyelftools>=0.29
+pyyaml>=6.0
+packaging>=23.0

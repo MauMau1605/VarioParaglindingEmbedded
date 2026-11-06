@@ -5,8 +5,8 @@
 #include "middleware/lk8ex1_formatter.hpp"
 #include "common/config.hpp"
 
-#include <cstdio>   // snprintf
-#include <cstring>  // strlen
+#include <stdio.h>   // snprintf
+#include <string.h>  // strlen
 
 namespace vario {
 namespace middleware {

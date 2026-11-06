@@ -1,9 +1,8 @@
 /// @file i2c_hal.hpp
-/// @brief Hardware Abstraction Layer for I2C communication.
-///        Wraps the Arduino Wire library to decouple upper layers from hardware.
+/// @brief Hardware abstraction layer for I2C communication via Zephyr I2C API.
 
-#ifndef VARIOUSB_HAL_I2C_HAL_HPP
-#define VARIOUSB_HAL_I2C_HAL_HPP
+#ifndef VARIO_HAL_I2C_HAL_HPP
+#define VARIO_HAL_I2C_HAL_HPP
 
 #include <cstdint>
 #include "common/error_codes.hpp"
@@ -11,27 +10,27 @@
 namespace vario {
 namespace hal {
 
-/// @brief Initialize the I2C peripheral.
-/// @return Error::kOk on success.
+/// @brief Initialize the hardware I2C master controller.
+/// @return Error::kOk on success, Error::kNotInitialized if device is not ready.
 Error i2c_init();
 
-/// @brief Read one or more bytes from a device register.
-/// @param device_addr 7-bit I2C device address.
-/// @param reg_addr    Register address to read from.
-/// @param buffer      Output buffer (caller-owned, must be >= len bytes).
+/// @brief Read one or more consecutive registers from an I2C device.
+/// @param device_addr 7-bit I2C slave address.
+/// @param reg_addr    Register offset to begin reading from.
+/// @param buffer      Destination memory buffer.
 /// @param len         Number of bytes to read.
-/// @return Error::kOk on success, Error::kNack or Error::kTimeout on failure.
+/// @return Error::kOk on success.
 Error i2c_read_register(uint8_t device_addr,
                         uint8_t reg_addr,
                         uint8_t* buffer,
                         uint8_t len);
 
-/// @brief Write one or more bytes to a device register.
-/// @param device_addr 7-bit I2C device address.
-/// @param reg_addr    Register address to write to.
-/// @param data        Data to write (caller-owned).
+/// @brief Write one or more bytes starting at an I2C device register.
+/// @param device_addr 7-bit I2C slave address.
+/// @param reg_addr    Starting register address.
+/// @param data        Source buffer containing bytes to write.
 /// @param len         Number of bytes to write.
-/// @return Error::kOk on success, Error::kNack or Error::kWriteFailed on failure.
+/// @return Error::kOk on success.
 Error i2c_write_register(uint8_t device_addr,
                          uint8_t reg_addr,
                          const uint8_t* data,
@@ -40,4 +39,4 @@ Error i2c_write_register(uint8_t device_addr,
 }  // namespace hal
 }  // namespace vario
 
-#endif  // VARIOUSB_HAL_I2C_HAL_HPP
+#endif  // VARIO_HAL_I2C_HAL_HPP

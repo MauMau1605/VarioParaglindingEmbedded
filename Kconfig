@@ -1,0 +1,4 @@
+mainmenu "VarioGPS-BLE Application"
+
+source "Kconfig.zephyr"
+

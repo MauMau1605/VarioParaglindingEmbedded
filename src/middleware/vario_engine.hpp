@@ -15,6 +15,11 @@ namespace middleware {
 /// @return Error::kOk on success.
 Error vario_engine_init();
 
+/// @brief Set current reference sea-level pressure (QNH) in Pa.
+///        Must be called only from the main thread.
+/// @param qnh_pa Pressure in Pascals (e.g. 101325).
+void vario_engine_set_qnh(int32_t qnh_pa);
+
 /// @brief Update the vario engine with a new pressure sample.
 ///        Computes filtered vertical speed (cm/s) from pressure derivative.
 /// @param pressure Input: latest compensated pressure data from BMP390.

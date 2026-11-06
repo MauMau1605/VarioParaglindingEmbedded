@@ -1,8 +1,8 @@
 /// @file sensor_bus_hal.hpp
-/// @brief Unified sensor bus interface (I2C or SPI) selected at compile-time.
+/// @brief Unified sensor bus facade for the BMP390 barometric sensor.
 
-#ifndef VARIOUSB_HAL_SENSOR_BUS_HAL_HPP
-#define VARIOUSB_HAL_SENSOR_BUS_HAL_HPP
+#ifndef VARIO_HAL_SENSOR_BUS_HAL_HPP
+#define VARIO_HAL_SENSOR_BUS_HAL_HPP
 
 #include <cstdint>
 #include "common/error_codes.hpp"
@@ -10,20 +10,20 @@
 namespace vario {
 namespace hal {
 
-/// @brief Initialize the configured sensor bus (I2C or SPI).
+/// @brief Initialize the physical communication bus for sensor access.
 /// @return Error::kOk on success.
 Error sensor_bus_init();
 
-/// @brief Read one or more bytes from a sensor register.
+/// @brief Read registers from the BMP390 sensor.
 /// @param reg_addr Starting register address.
-/// @param buffer   Caller-owned destination buffer.
+/// @param buffer   Caller-allocated destination buffer.
 /// @param len      Number of bytes to read.
 /// @return Error::kOk on success.
 Error sensor_bus_read_register(uint8_t reg_addr,
                                uint8_t* buffer,
                                uint8_t len);
 
-/// @brief Write one or more bytes to a sensor register.
+/// @brief Write registers to the BMP390 sensor.
 /// @param reg_addr Starting register address.
 /// @param data     Data bytes to write.
 /// @param len      Number of bytes to write.
@@ -35,4 +35,4 @@ Error sensor_bus_write_register(uint8_t reg_addr,
 }  // namespace hal
 }  // namespace vario
 
-#endif  // VARIOUSB_HAL_SENSOR_BUS_HAL_HPP
+#endif  // VARIO_HAL_SENSOR_BUS_HAL_HPP

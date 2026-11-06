@@ -1,8 +1,11 @@
 .pio
 .vscode
 .idea
+.venv/
 *.bak
 *.tmp
 __pycache__
 *.pyc
+build/
+CMakeUserPresets.json
 tools/vario_monitor/logs*

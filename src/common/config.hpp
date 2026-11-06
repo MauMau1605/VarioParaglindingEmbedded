@@ -1,8 +1,8 @@
 /// @file config.hpp
-/// @brief Project-wide compile-time configuration constants.
+/// @brief Project-wide compile-time configuration constants for VarioGPS-BLE.
 
-#ifndef VARIOUSB_COMMON_CONFIG_HPP
-#define VARIOUSB_COMMON_CONFIG_HPP
+#ifndef VARIO_COMMON_CONFIG_HPP
+#define VARIO_COMMON_CONFIG_HPP
 
 #include <cstdint>
 
@@ -10,63 +10,51 @@ namespace vario {
 namespace config {
 
 // ---------------------------------------------------------------------------
-// Sensor Bus Interface Selection (0 = I2C, 1 = SPI)
+// Barometer I2C & Timing Configuration
 // ---------------------------------------------------------------------------
 
-#ifndef VARIO_USE_SPI
-/// Set to 1 to communicate with BMP390 via SPI (4-wire), 0 for I2C.
-#define VARIO_USE_SPI 0
-#endif
+/// Main loop timer tick (ms)
+static constexpr uint32_t kMainTickMs = 10;
 
-// ---------------------------------------------------------------------------
-// SPI Configuration (active when VARIO_USE_SPI == 1)
-// ---------------------------------------------------------------------------
+/// BMP390 nominal sample period (50 Hz)
+static constexpr uint32_t kBaroSamplePeriodMs = 20;
 
-/// Chip Select (CS) pin for BMP390 (Seeed XIAO D3 / Physical Pin 4)
-static constexpr uint8_t kSpiCsPin = 3;
+/// Buzzer update tick count (update every 5 * 10 ms = 50 ms)
+static constexpr uint32_t kBuzzerUpdateTicks = 5;
 
-// ---------------------------------------------------------------------------
-// I2C Configuration (active when VARIO_USE_SPI == 0)
-// ---------------------------------------------------------------------------
+/// Watchdog timeout in ms
+static constexpr uint32_t kWdtTimeoutMs = 2000;
 
-/// BMP390 I2C address (SDO wired to 3.3V = HIGH → address 0x77, GND → 0x76)
-static constexpr uint8_t kBmp390I2cAddress = 0x77;
-
-// ---------------------------------------------------------------------------
-// Timing Configuration
-// ---------------------------------------------------------------------------
+/// BMP390 I2C address (SDO tied to GND on custom PCB -> 0x76)
+static constexpr uint8_t kBmp390I2cAddress = 0x76;
 
 /// Pressure acquisition interval in milliseconds (50 Hz)
 static constexpr uint32_t kAcquisitionIntervalMs = 20;
 
-/// LK8EX1 sentence transmission interval in milliseconds (10 Hz)
+/// Default LK8EX1 transmission interval in milliseconds (10 Hz)
 static constexpr uint32_t kTransmitIntervalMs = 100;
 
-// ---------------------------------------------------------------------------
-// USB Serial Configuration
-// ---------------------------------------------------------------------------
+/// GNSS update interval in milliseconds (1 Hz)
+static constexpr uint32_t kGpsIntervalMs = 1000;
 
-/// USB CDC baud rate (standard for variometer protocols)
-static constexpr uint32_t kUsbBaudRate = 115200;
-
-/// Maximum time to wait for USB connection at startup (ms)
-static constexpr uint32_t kUsbInitTimeoutMs = 2000;
+/// Battery voltage check interval in milliseconds (30 seconds)
+static constexpr uint32_t kBatteryIntervalMs = 30000;
 
 // ---------------------------------------------------------------------------
 // BMP390 Sensor Configuration
 // ---------------------------------------------------------------------------
 
 /// Pressure oversampling (x8 recommended for variometer use)
-static constexpr uint8_t kBmp390OsrPressure = 3;  // 0=x1, 1=x2, 2=x4, 3=x8, 4=x16, 5=x32
+static constexpr uint8_t kBmp390OsrPressure = 3;
 
 /// Temperature oversampling (x1 sufficient for variometer)
-static constexpr uint8_t kBmp390OsrTemperature = 0;  // 0=x1
+static constexpr uint8_t kBmp390OsrTemperature = 0;
 
-/// IIR filter coefficient (coeff 3 for moderate smoothing)
-static constexpr uint8_t kBmp390IirFilterCoeff = 2;  // 0=off, 1=1, 2=3, 3=7, 4=15, 5=31, 6=63, 7=127
+/// On-chip IIR filter coefficient (coeff 3 for moderate smoothing)
+static constexpr uint8_t kBmp390IirFilterCoeff = 2;
 
 /// Output data rate setting (50 Hz)
-static constexpr uint8_t kBmp390Odr = 0x02;  // 0x00=200Hz, 0x01=100Hz, 0x02=50Hz, 0x03=25Hz
+static constexpr uint8_t kBmp390Odr = 0x02;
 
 // ---------------------------------------------------------------------------
 // LK8EX1 Formatter Configuration
@@ -75,25 +63,141 @@ static constexpr uint8_t kBmp390Odr = 0x02;  // 0x00=200Hz, 0x01=100Hz, 0x02=50H
 /// Maximum buffer size for a single LK8EX1 sentence
 static constexpr uint8_t kLk8ex1MaxLen = 64;
 
-/// Altitude placeholder (unknown, to be computed by phone app)
+/// Altitude placeholder when baro altitude is not available
 static constexpr int32_t kAltitudeUnknown = 99999;
 
-/// Battery placeholder (not managed on this hardware)
+/// Battery placeholder when battery status is unknown
 static constexpr int16_t kBatteryUnknown = 999;
 
 // ---------------------------------------------------------------------------
 // Vario Engine Configuration
 // ---------------------------------------------------------------------------
 
-/// IIR filter alpha coefficient (0–256 range, 256 = no filtering)
-/// At 50 Hz (dt = 20 ms), alpha = 26/256 ≈ 0.10 gives tau ≈ 187 ms time constant,
-/// providing fast thermal entry response while damping high-frequency pressure jitter.
+/// IIR filter alpha coefficient (26/256 ≈ 0.10, tau ≈ 187 ms at 50 Hz)
 static constexpr uint16_t kVarioFilterAlpha = 26;
 
-/// Scale denominator for the alpha filter (fixed-point arithmetic)
+/// Scale denominator for alpha filter (fixed-point arithmetic)
 static constexpr uint16_t kVarioFilterScale = 256;
+
+/// Barometric scale numerator for cPa -> cm/s conversion (-0.0832 m/Pa)
+static constexpr int32_t kBaroScaleNum = -832;
+
+/// Barometric scale denominator
+static constexpr int32_t kBaroScaleDenom = 10000;
+
+// ---------------------------------------------------------------------------
+// GNSS SAM-M10Q Configuration
+// ---------------------------------------------------------------------------
+
+/// Maximum initialization attempts
+static constexpr uint8_t kGpsInitMaxAttempts = 2;
+
+/// Configuration packet sends per baud rate test
+static constexpr uint8_t kGpsConfigSendsPerBaud = 2;
+
+/// Timeout waiting for UBX ACK in ms
+static constexpr uint32_t kGpsAckTimeoutMs = 250;
+
+/// GPS baud rate for cold boot handshake
+static constexpr uint32_t kGpsBaudCold = 9600;
+
+/// GPS baud rate for normal run operation
+static constexpr uint32_t kGpsBaudRun = 115200;
+
+/// Factory default boot baud rate for SAM-M10Q
+static constexpr uint32_t kGpsBootBaudRate = 9600;
+
+/// Operational high-speed baud rate for UBX communication
+static constexpr uint32_t kGpsOperatingBaudRate = 115200;
+
+/// Expected UBX-NAV-PVT payload length
+static constexpr uint16_t kUbxNavPvtPayloadLen = 92;
+
+/// Total UBX-NAV-PVT frame length (sync + header + payload + checksum)
+static constexpr uint16_t kUbxNavPvtFrameLen = 100;
+
+/// UART RX inactivity timeout in microseconds for EasyDMA end-of-frame
+static constexpr uint32_t kUartRxTimeoutUs = 5000;
+
+// ---------------------------------------------------------------------------
+// QNH Calibration & Takeoff Detection Configuration
+// ---------------------------------------------------------------------------
+
+/// 1 Hz samples in moving average window for P0 calculation
+static constexpr uint8_t kQnhWindowSamples = 20;
+
+/// Minimum samples required before initial P0 calculation
+static constexpr uint8_t kQnhMinSamples = 5;
+
+/// Update P0 only below this ground speed (mm/s)
+static constexpr int32_t kQnhStationarySpeedMmS = 1500;
+
+/// Takeoff vertical speed trigger (|Vz| > 1.2 m/s) in cm/s
+static constexpr int32_t kTakeoffVzCmS = 120;
+
+/// Takeoff vertical speed trigger with ground speed (|Vz| > 0.5 m/s) in cm/s
+static constexpr int32_t kTakeoffVzWithSpeedCmS = 50;
+
+/// Takeoff ground speed trigger (2.5 m/s) in mm/s
+static constexpr int32_t kTakeoffSpeedMmS = 2500;
+
+/// Takeoff condition hold duration in ms (3 s)
+static constexpr uint32_t kTakeoffHoldMs = 3000;
+
+/// Standard ISA sea-level pressure in Pascals
+static constexpr int32_t kIsaSeaLevelPa = 101325;
+
+// ---------------------------------------------------------------------------
+// Buzzer / Audio Configuration
+// ---------------------------------------------------------------------------
+
+/// Minimum climb rate to start beeping (cm/s, deadband upper boundary)
+static constexpr int32_t kBuzzerClimbMinCms = 30;
+
+/// Maximum climb rate for audio frequency saturation (cm/s)
+static constexpr int32_t kBuzzerClimbMaxCms = 500;
+
+/// Sink alarm threshold (cm/s, deadband lower boundary)
+static constexpr int32_t kBuzzerSinkThresholdCms = -100;
+
+/// Buzzer base frequency at minimum climb rate (Hz)
+static constexpr uint32_t kBuzzerFreqClimbMinHz = 700;
+
+/// Buzzer max frequency at maximum climb rate (Hz)
+static constexpr uint32_t kBuzzerFreqClimbMaxHz = 2500;
+
+/// Beep period at minimum climb rate (ms)
+static constexpr uint32_t kBuzzerPeriodClimbMaxMs = 600;
+
+/// Beep period at maximum climb rate (ms)
+static constexpr uint32_t kBuzzerPeriodClimbMinMs = 150;
+
+/// Continuous sink tone frequency (Hz)
+static constexpr uint32_t kBuzzerFreqSinkHz = 300;
+
+// ---------------------------------------------------------------------------
+// Battery & ADC Configuration
+// ---------------------------------------------------------------------------
+
+/// Battery sampling interval in ms (30 seconds)
+static constexpr uint32_t kBatterySampleIntervalMs = 30000;
+
+/// Battery calibration multiplier numerator
+static constexpr int32_t kBatteryCalNum = 1;
+
+/// Battery calibration multiplier denominator
+static constexpr int32_t kBatteryCalDen = 1;
+
+/// Number of ADC readings averaged per battery update
+static constexpr uint8_t kAdcAverageSamples = 8;
+
+/// Minimum LiPo battery voltage in millivolts (0% SoC)
+static constexpr uint16_t kBatteryCutoffMv = 3000;
+
+/// Maximum LiPo battery voltage in millivolts (100% SoC)
+static constexpr uint16_t kBatteryFullMv = 4200;
 
 }  // namespace config
 }  // namespace vario
 
-#endif  // VARIOUSB_COMMON_CONFIG_HPP
+#endif  // VARIO_COMMON_CONFIG_HPP

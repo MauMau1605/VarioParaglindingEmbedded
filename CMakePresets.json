@@ -1,0 +1,61 @@
+{
+  "version": 3,
+  "cmakeMinimumRequired": {
+    "major": 3,
+    "minor": 20,
+    "patch": 0
+  },
+  "configurePresets": [
+    {
+      "name": "vario-tracker",
+      "displayName": "Vario Tracker (nRF52833)",
+      "description": "Target build for nRF52833-QDAA with custom hardware overlay",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build",
+      "cacheVariables": {
+        "CMAKE_C_COMPILER": "arm-none-eabi-gcc",
+        "CMAKE_CXX_COMPILER": "arm-none-eabi-g++",
+        "ZEPHYR_TOOLCHAIN_VARIANT": "gnuarmemb",
+        "GNUARMEMB_TOOLCHAIN_PATH": "$env{USERPROFILE}/.platformio/packages/toolchain-gccarmnoneeabi",
+        "BOARD": "nrf52833dk/nrf52833",
+        "DTC_OVERLAY_FILE": "${sourceDir}/boards/vario_tracker.overlay",
+        "CONF_FILE": "${sourceDir}/prj.conf"
+      }
+    },
+    {
+      "name": "vario-tracker-debug",
+      "displayName": "Vario Tracker Debug",
+      "description": "Debug build with RTT logs and debug symbols",
+      "inherits": "vario-tracker",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug"
+      }
+    },
+    {
+      "name": "vario-tracker-release",
+      "displayName": "Vario Tracker Release",
+      "description": "Size-optimized release build",
+      "inherits": "vario-tracker",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "MinSizeRel"
+      }
+    }
+  ],
+  "buildPresets": [
+    {
+      "name": "vario-tracker",
+      "displayName": "Build Vario Tracker",
+      "configurePreset": "vario-tracker"
+    },
+    {
+      "name": "vario-tracker-debug",
+      "displayName": "Build Vario Tracker (Debug)",
+      "configurePreset": "vario-tracker-debug"
+    },
+    {
+      "name": "vario-tracker-release",
+      "displayName": "Build Vario Tracker (Release)",
+      "configurePreset": "vario-tracker-release"
+    }
+  ]
+}
